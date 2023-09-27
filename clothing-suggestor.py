@@ -185,7 +185,7 @@ def determine_clothing(res):
     for i in range(1, len(clothing)):
         if clothing[i] > max_clothing:
             max_clothing = clothing[i]
-            index = i
+            index_clothing = i
     
     match index_clothing:
         case 0:
