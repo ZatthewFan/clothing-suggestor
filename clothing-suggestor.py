@@ -2,15 +2,26 @@ import schedule
 import time
 import requests
 from twilio.rest import Client
+import os
+from dotenv import find_dotenv, load_dotenv
+
+# find path to .env file in directory
+dotenv_path = find_dotenv()
+load_dotenv(dotenv_path)
+
+TWILIO_SID = os.getenv("TWILIO_SID")
+AUTH_TOKEN = os.getenv("AUTH_TOKEN")
+FROM_PHONE = os.getenv("FROM_PHONE")
+TO_PHONE = os.getenv("TO_PHONE")
 
 """
 Uses Twilio's api to send a text message to designated number for clothing suggestions for the day
 """
 def send_text_message(body):
-    account_sid = "<twilio_sid>"
-    auth_token = "<auth_token>"
-    from_phone_number = "<from>"
-    to_phone_number = "<to>"
+    account_sid = TWILIO_SID
+    auth_token = AUTH_TOKEN
+    from_phone_number = FROM_PHONE
+    to_phone_number = TO_PHONE
 
     client = Client(account_sid, auth_token)
 
