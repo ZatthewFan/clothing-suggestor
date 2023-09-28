@@ -1,3 +1,15 @@
 # Clothing Suggestor
 
-suggests clothing and items you should bring for the day by sending a text message at a set time
+This script texts you weather info and suggests what to wear (so you wouldn't need to think about it while looking at the weather app) every day at a set time.
+
+### Usage:
+create a .env file in the base directory of the script and fill in the following info inside the quotation marks
+
+```
+TWILIO_SID = ""
+AUTH_TOKEN = ""
+FROM_PHONE = ""
+TO_PHONE = ""
+LATITUDE = ""
+LONGITUDE = ""
+```

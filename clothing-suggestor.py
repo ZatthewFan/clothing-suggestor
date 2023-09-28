@@ -14,8 +14,8 @@ AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 FROM_PHONE = os.getenv("FROM_PHONE")
 TO_PHONE = os.getenv("TO_PHONE")
 
-LATITUDE = os.getenv("LATITUDE")
-LONGITUDE = os.getenv("LONGITUDE")
+LATITUDE = os.getenv("LATITUDE")        # Latitude of city to get weather info from
+LONGITUDE = os.getenv("LONGITUDE")      # Longitude of city to get weather info from
 SEND_MESSAGE_TIME = "10:00"             # 24h format
 START_TIME = 10                         # integer; hour in 24h format
 END_TIME =  19                          # integer; hour in 24h format
