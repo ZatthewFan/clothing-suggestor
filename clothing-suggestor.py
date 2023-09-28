@@ -14,6 +14,13 @@ AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 FROM_PHONE = os.getenv("FROM_PHONE")
 TO_PHONE = os.getenv("TO_PHONE")
 
+LATITUDE = os.getenv("LATITUDE")
+LONGITUDE = os.getenv("LONGITUDE")
+SEND_MESSAGE_TIME = "10:00"             # 24h format
+START_TIME = 10                         # integer; hour in 24h format
+END_TIME =  19                          # integer; hour in 24h format
+
+
 """
 Uses Twilio's api to send a text message to designated number for clothing suggestions for the day
 """
@@ -36,13 +43,10 @@ def send_text_message(body):
 """
 makes a call to Open Meteo's weather api to collect weather information
 
-@param lat: latitude
-@param long: longitude
-
 @return: data from api call to Open Meteo
 """
-def get_weather(lat, long):
-    base_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={long}&hourly=temperature_2m,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth&daily=uv_index_max&timezone=America%2FLos_Angeles"
+def get_weather():
+    base_url = f"https://api.open-meteo.com/v1/forecast?latitude={LATITUDE}&longitude={LONGITUDE}&hourly=temperature_2m,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth&daily=uv_index_max&timezone=America%2FLos_Angeles"
     response = requests.get(base_url)
 
     # check if api call went through; if not, send status code
@@ -66,8 +70,8 @@ finds the average from a time window
 @return: returns the mean average from said time window
 """
 def find_avg(data):
-    from_= 10
-    to = 18
+    from_= START_TIME
+    to = END_TIME
     total = 0
 
     for i in range(from_, to):
@@ -81,40 +85,42 @@ updates results based on temperature
 @param res: results dict that this helper is updating
 @param *args: list of arbitrary length of additional arguments required to update results
 """
-def temp_updates(res, *args):
-    if args[0] >= 30:
+def temp_updates(res, temp):
+    if temp >= 30:
         res["clothing"][3] = 10
 
         res["footwear"] = 1
-    elif args[0] >= 20:
+    elif temp >= 20:
         res["clothing"][3] += 8
 
         res["footwear"] += 0.5
-    elif args[0] >= 15:
+    elif temp >= 15:
         res["clothing"][2] += 3
         res["clothing"][3] += 6
-    elif args[0] >= 10:
+    elif temp >= 10:
         res["clothing"][3] += 3
         res["clothing"][2] += 8
         res["clothing"][1] += 5
 
         res["footwear"] -= 0.1
-    elif args[0] >= 5:
+    elif temp >= 5:
         res["clothing"][2] += 6
         res["clothing"][1] += 8
         res["clothing"][0] += 2
 
         res["footwear"] -= 0.3
-    elif args[0] >= 0:
+    elif temp >= 0:
         res["clothing"][2] += 3
         res["clothing"][1] += 9
         res["clothing"][3] += 7
 
         res["footwear"] -= 0.5
-    elif args[0] < -5:
+    elif temp < -5:
         res["clothing"][0] = 10
 
         res["footwear"] -= 0.5
+    
+    res["temperature"] = "{:.1f}".format(temp)
 
 """
 updates results based on weather
@@ -122,9 +128,9 @@ updates results based on weather
 @param res: results dict that this helper is updating
 @param *args: list of arbitrary length of additional arguments required to update results
 """
-def precip_updates(res, precip, rain, shower, snowfall, snow_depth):
+def precip_updates(res, precip, showrain, snowfall, snow_depth):
     # if snowing
-    if precip > 40 and snowfall > rain and snowfall > shower:
+    if precip > 40 and snowfall > showrain:
         if snow_depth > 3:
             res["footwear"] = -1
         if snowfall < 10:
@@ -144,21 +150,18 @@ def precip_updates(res, precip, rain, shower, snowfall, snow_depth):
     # in the case of rain
     else:
         res["umbrella"] = True
-        if shower > rain:
-            res["weather"] = "showers"
+        if showrain < 2.5:
+            res["weather"] = "light rain"
+        elif showrain < 7.6:
+            res["weather"] = "moderate rain"
+        elif showrain < 50:
+            res["weather"] = "heavy rain"
+
+            res["footwear"] = -1
         else:
-            if rain < 2.5:
-                res["weather"] = "light rain"
-            elif rain < 7.6:
-                res["weather"] = "moderate rain"
-            elif rain < 50:
-                res["weather"] = "heavy rain"
+            res["weather"] = "violent rain"
 
-                res["footwear"] = -1
-            else:
-                res["weather"] = "violent rain"
-
-                res["footwear"] = -1
+            res["footwear"] = -1
         
         res["clothing"][0] += 3
         res["clothing"][1] += 4
@@ -214,13 +217,14 @@ determines what you should wear
 @return: a list of things to put in text message
 """
 def determine(res):
-    clothes = determine_clothing(res)
-    footwear = determine_footwear(res)
-    umbrella = res["umbrella"]
-    weather = res["weather"]
-    sunscreen = res["sunscreen"]
-
-    formatted = [clothes, footwear, umbrella, weather, sunscreen]
+    formatted = {
+        "clothes": determine_clothing(res),
+        "footwear": determine_footwear(res),
+        "umbrella": res["umbrella"],
+        "weather": res["weather"],
+        "sunscreen": res["sunscreen"],
+        "temperature": res["temperature"]
+    }
 
     return formatted
 
@@ -240,10 +244,15 @@ determines what to wear
 @return: result of determined clothing options
 """
 def what_to_wear(temp, precip, rain, shower, snowfall, snow_depth, uv_index):
+    # list of highest values of shower and rain; they are considered the same weather for this script
+    showrain = []
+    
     temp_avg = find_avg(temp)
     precip_avg = find_avg(precip)
-    rain_avg = find_avg(rain)
-    shower_avg = find_avg(shower)
+    for i in range(len(rain)):
+        max_rain_shower = max(rain[i], shower[i])
+        showrain.append(max_rain_shower)
+    showrain_avg = find_avg(showrain)
     snowfall_avg = find_avg(snowfall)
     snow_depth_avg = find_avg(snow_depth)
     uv = max(uv_index)
@@ -264,11 +273,14 @@ def what_to_wear(temp, precip, rain, shower, snowfall, snow_depth, uv_index):
         "weather": None,
 
         # boolean
-        "sunscreen": None
+        "sunscreen": None,
+
+        # float
+        "temperature": None
     }
 
     temp_updates(result, temp_avg)
-    precip_updates(result, precip_avg, rain_avg, shower_avg, snowfall_avg, snow_depth_avg)
+    precip_updates(result, precip_avg, showrain_avg, snowfall_avg, snow_depth_avg)
     sun_updates(result, uv)
 
     choice = determine(result)
@@ -276,16 +288,43 @@ def what_to_wear(temp, precip, rain, shower, snowfall, snow_depth, uv_index):
     return choice
 
 """
+converts a time from 24h format to 12h format
+
+@return: a string of the time converted to 12h format
+"""
+def time_converter(time):
+    converted = ""
+
+    match time:
+        case 0 | 24:
+            converted = "12:00 AM"
+        case _ if time < 12:
+            converted = str(time) + ":00 AM"
+        case 12:
+            converted = "12:00 PM"
+        case _ if time <= 23:
+            converted = str(time % 12) + ":00 PM"
+        case _:
+            print("invalid time")
+
+    
+
+    return converted
+
+"""
 processes text into a text message
-[clothes, footwear, umbrella, weather, sunscreen]
+[clothes, footwear, umbrella, weather, sunscreen, temperature]
 
 @return: a formatted text message with clothing recommendations
 """
 def process_text(text):
+    start = time_converter(START_TIME)
+    end = time_converter(END_TIME)
     clothing_rec = (
-        f"Good morning! Today's weather is {text[3]}. You should wear a {text[0]} with {text[1]}.\n"
-        f"Bring an umbrella: {text[2]}\n"
-        f"Apply sunscreen: {text[4]}"
+        f"Good morning! Today's average temperature from {start} to {end} is {str(text['temperature']) + '°C'}.\n"
+        f"Make sure to wear a {text['clothes']} and {text['footwear']} today.\n"
+        f"Since the weather is {text['weather']}, you {'will' if text['umbrella'] else 'will not'} need to bring an umbrella. "
+        f"\n{'Remember to apply sunscreen today!' if text['sunscreen'] else 'You do not need to apply sunscreen today'}"
     )
 
     return clothing_rec
@@ -294,10 +333,7 @@ def process_text(text):
 gathers weather data at selected location (in this case Vancouver), and sends a text message for clothing recommendations for the day
 """
 def send_clothing_rec():
-    latitude = 49.2497
-    longitude = -123.1193
-
-    weather_data = get_weather(latitude, longitude)
+    weather_data = get_weather()
     temp_celsius = weather_data["hourly"]["temperature_2m"]
     precip_proba = weather_data["hourly"]["precipitation_probability"]
     rain_mm = weather_data["hourly"]["rain"]
@@ -315,7 +351,8 @@ def send_clothing_rec():
 runs the scheduling process
 """
 def main():
-    schedule.every().day.at("10:00").do(send_clothing_rec)
+    schedule.every().day.at(SEND_MESSAGE_TIME).do(send_clothing_rec)
+    print("Ready to send message at scheduled time!")
 
     while True:
         schedule.run_pending()
