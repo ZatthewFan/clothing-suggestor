@@ -16,7 +16,7 @@ TO_PHONE = os.getenv("TO_PHONE")
 
 LATITUDE = os.getenv("LATITUDE")        # Latitude of city to get weather info from
 LONGITUDE = os.getenv("LONGITUDE")      # Longitude of city to get weather info from
-SEND_MESSAGE_TIME = "10:00"             # 24h format
+SEND_MESSAGE_TIME = "17:51"             # 24h format
 START_TIME = 10                         # integer; hour in 24h format
 END_TIME =  19                          # integer; hour in 24h format
 
@@ -46,7 +46,7 @@ makes a call to Open Meteo's weather api to collect weather information
 @return: data from api call to Open Meteo
 """
 def get_weather():
-    base_url = f"https://api.open-meteo.com/v1/forecast?latitude={LATITUDE}&longitude={LONGITUDE}&hourly=temperature_2m,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth&daily=uv_index_max&timezone=America%2FLos_Angeles"
+    base_url = f"https://api.open-meteo.com/v1/forecast?latitude={LATITUDE}&longitude={LONGITUDE}&hourly=temperature_2m,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,cloudcover&daily=uv_index_max&timezone=America%2FLos_Angeles"
     response = requests.get(base_url)
 
     # check if api call went through; if not, send status code
@@ -128,7 +128,7 @@ updates results based on weather
 @param res: results dict that this helper is updating
 @param *args: list of arbitrary length of additional arguments required to update results
 """
-def precip_updates(res, precip, showrain, snowfall, snow_depth):
+def precip_updates(res, precip, showrain, snowfall, snow_depth, cloudcover):
     # if snowing
     if precip > 40 and snowfall > showrain:
         if snow_depth > 3:
@@ -147,6 +147,19 @@ def precip_updates(res, precip, showrain, snowfall, snow_depth):
     # if precip is less than 40%, don't bring umbrella
     if precip < 40:
         res["umbrella"] = False
+        
+        if cloudcover >= 88:
+            res["weather"] = "cloudy"
+        elif cloudcover >= 70:
+            res["weather"] = "mostly cloudy"
+        elif cloudcover >= 51:
+            res["weather"] = "partly cloudy"
+        elif cloudcover >= 26:
+            res["weather"] = "mostly sunny"
+        elif cloudcover >= 6:
+            res["weather"] = "sunny"
+        else:
+            res["weather"] = "clear skies"
     # in the case of rain
     else:
         res["umbrella"] = True
@@ -240,10 +253,11 @@ determines what to wear
 @param snowfall: snowfall
 @param snow_depth: snow depth
 @param uv_index: uv index
+@param cloudcover: cloudcover percentage
 
 @return: result of determined clothing options
 """
-def what_to_wear(temp, precip, rain, shower, snowfall, snow_depth, uv_index):
+def what_to_wear(temp, precip, rain, shower, snowfall, snow_depth, uv_index, cloudcover):
     # list of highest values of shower and rain; they are considered the same weather for this script
     showrain = []
     
@@ -256,6 +270,7 @@ def what_to_wear(temp, precip, rain, shower, snowfall, snow_depth, uv_index):
     snowfall_avg = find_avg(snowfall)
     snow_depth_avg = find_avg(snow_depth)
     uv = max(uv_index)
+    cloudcover_avg = find_avg(cloudcover)
 
     result = {
         # scale from 0 to 10
@@ -280,7 +295,7 @@ def what_to_wear(temp, precip, rain, shower, snowfall, snow_depth, uv_index):
     }
 
     temp_updates(result, temp_avg)
-    precip_updates(result, precip_avg, showrain_avg, snowfall_avg, snow_depth_avg)
+    precip_updates(result, precip_avg, showrain_avg, snowfall_avg, snow_depth_avg, cloudcover_avg)
     sun_updates(result, uv)
 
     choice = determine(result)
@@ -320,10 +335,18 @@ processes text into a text message
 def process_text(text):
     start = time_converter(START_TIME)
     end = time_converter(END_TIME)
+    
+    conditional_weather_text = ""
+    
+    if "rain" in text['weather'] or "cloudy" in text['weather']:
+        conditional_weather_text = f"Since the weather is {text['weather']}, you {'will' if text['umbrella'] else 'will not'} need to bring an umbrella. "
+    else:
+        conditional_weather_text = f"Today will be {text['weather']}! Enjoy the weather! "
+    
     clothing_rec = (
         f"Good morning! Today's average temperature from {start} to {end} is {str(text['temperature']) + '°C'}.\n"
         f"Make sure to wear a {text['clothes']} and {text['footwear']} today.\n"
-        f"Since the weather is {text['weather']}, you {'will' if text['umbrella'] else 'will not'} need to bring an umbrella. "
+        + conditional_weather_text +
         f"\n{'Remember to apply sunscreen today!' if text['sunscreen'] else 'You do not need to apply sunscreen today'}"
     )
 
@@ -341,8 +364,9 @@ def send_clothing_rec():
     snowfall = weather_data["hourly"]["snowfall"]
     snow_depth = weather_data["hourly"]["snow_depth"]
     uv_index = weather_data["daily"]["uv_index_max"]
+    cloudcover = weather_data["hourly"]["cloudcover"]
 
-    body = process_text(what_to_wear(temp_celsius, precip_proba, rain_mm, shower_mm, snowfall, snow_depth, uv_index))
+    body = process_text(what_to_wear(temp_celsius, precip_proba, rain_mm, shower_mm, snowfall, snow_depth, uv_index, cloudcover))
 
     send_text_message(body)
 
