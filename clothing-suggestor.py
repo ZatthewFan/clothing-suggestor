@@ -4,6 +4,7 @@ import requests
 from twilio.rest import Client
 import os
 from dotenv import find_dotenv, load_dotenv
+import threading
 
 # find path to .env file in directory
 dotenv_path = find_dotenv()
@@ -16,7 +17,7 @@ TO_PHONE = os.getenv("TO_PHONE")
 
 LATITUDE = os.getenv("LATITUDE")        # Latitude of city to get weather info from
 LONGITUDE = os.getenv("LONGITUDE")      # Longitude of city to get weather info from
-SEND_MESSAGE_TIME = "17:51"             # 24h format
+SEND_MESSAGE_TIME = "10:00"             # 24h format
 START_TIME = 10                         # integer; hour in 24h format
 END_TIME =  19                          # integer; hour in 24h format
 
@@ -345,7 +346,7 @@ def process_text(text):
     
     clothing_rec = (
         f"Good morning! Today's average temperature from {start} to {end} is {str(text['temperature']) + '°C'}.\n"
-        f"Make sure to wear a {text['clothes']} and {text['footwear']} today.\n"
+        f"Make sure to at least wear a {text['clothes']} and {text['footwear']} today.\n"
         + conditional_weather_text +
         f"\n{'Remember to apply sunscreen today!' if text['sunscreen'] else 'You do not need to apply sunscreen today'}"
     )

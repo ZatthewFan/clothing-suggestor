@@ -13,3 +13,7 @@ TO_PHONE = ""
 LATITUDE = ""
 LONGITUDE = ""
 ```
+
+### TODO:
+- [ ] Make a web-based interface to interact with
+- [ ] Improve performace with async
