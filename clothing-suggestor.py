@@ -383,4 +383,6 @@ def main():
         schedule.run_pending()
         time.sleep(1)
 
-main()
+# main()
+if __name__ == "__main__":
+    main()
