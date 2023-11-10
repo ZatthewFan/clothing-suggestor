@@ -4,7 +4,6 @@ import requests
 from twilio.rest import Client
 import os
 from dotenv import find_dotenv, load_dotenv
-import threading
 
 # find path to .env file in directory
 dotenv_path = find_dotenv()
@@ -259,14 +258,13 @@ determines what to wear
 @return: result of determined clothing options
 """
 def what_to_wear(temp, precip, rain, shower, snowfall, snow_depth, uv_index, cloudcover):
-    # list of highest values of shower and rain; they are considered the same weather for this script
+    # list of combined values of shower and rain; they are considered the same weather for this script
     showrain = []
     
     temp_avg = find_avg(temp)
     precip_avg = find_avg(precip)
     for i in range(len(rain)):
-        max_rain_shower = max(rain[i], shower[i])
-        showrain.append(max_rain_shower)
+        showrain.append(rain[i] + shower[i])
     showrain_avg = find_avg(showrain)
     snowfall_avg = find_avg(snowfall)
     snow_depth_avg = find_avg(snow_depth)
